@@ -1,23 +1,35 @@
 <template>
-  <div class="img-zoom-com" ref="Com_Wrap">
+  <div
+    class="img-zoom-com"
+    @mousewheel="mousewheelImgHandler"
+    ref="imgZoomComRef"
+  >
+    <!-- 右上角倍数窗口 -->
     <div class="zoom-info">
       <div class="zoom-control">
         <span class="zoom-minus" @click="zoomScaleMinus">-</span>
         <span class="zoom-value">{{ zoom_scale }}</span>
         <span class="zoom-add" @click="zoomScaleAdd">+</span>
       </div>
+      <!-- 全屏按钮 -->
       <div class="full-screen">
         全
       </div>
     </div>
+    <!-- 主图展示区域 -->
     <div
       @mousedown="mousedownWrapHandler"
       @mouseup="mouseupWrapHandler"
-      class="img-wrap"
+      class="img-wrap mid"
       ref="ImgWrapRef"
     >
       <img src="../assets/dongtian.jpg" alt="" />
-      <div class="zoom-tool-box" ref="zoomToolBoxRef"></div>
+      <!-- 放大镜盒子 -->
+      <div
+        v-show="is_zoom_tool"
+        class="zoom-tool-box"
+        ref="zoomToolBoxRef"
+      ></div>
     </div>
   </div>
 </template>
@@ -28,6 +40,8 @@ export default {
   data() {
     return {
       zoom_scale: 100,
+      is_rectangular: false,
+      is_zoom_tool: false,
       mousePosInfo: {
         startX: 0,
         startY: 0,
@@ -49,8 +63,8 @@ export default {
     // 外层盒子鼠标按下事件处理
     mousedownWrapHandler(e) {
       e.preventDefault()
-      const startX = e.offsetX
-      const startY = e.offsetY
+      const startX = e.offsetX // 鼠标按下 X 点
+      const startY = e.offsetY // 鼠标按下 Y 点
       this.mousePosInfo.startX = startX
       this.mousePosInfo.startY = startY
       const Com_Wrap = this.getRef('Com_Wrap')
@@ -67,11 +81,13 @@ export default {
       const moveY = e.pageY
       const { offsetLeft, offsetTop, startX, startY } = this.mousePosInfo
       const ImgWrapRef = this.getRef('ImgWrapRef')
-      ImgWrapRef.style = `
-        position:absolute;
-        left:${moveX - offsetLeft - startX}px;
-        top:${moveY - offsetTop - startY}px;
-      `
+      let strStyle = ImgWrapRef.style.cssText
+      strStyle += `
+            position:absolute;
+            left:${moveX - offsetLeft - startX + ImgWrapRef.offsetWidth / 2}px;
+            top:${moveY - offsetTop - startY + ImgWrapRef.offsetHeight / 2}px;
+            `
+      ImgWrapRef.style = strStyle
     },
     // 外层盒子鼠标弹起事件处理
     mouseupWrapHandler(e) {
@@ -88,6 +104,7 @@ export default {
           break
       }
     },
+    // 点击缩小
     zoomScaleAdd() {
       let num = this.zoom_scale
       if (this.zoom_scale >= 100)
@@ -99,6 +116,7 @@ export default {
       }
       this.zoom_scale = this.zoom_scale >= 400 ? 400 : this.zoom_scale
     },
+    // 点击放大
     zoomScaleMinus() {
       let num = this.zoom_scale
       if (num > 100) num = parseInt(num / 100) * 100 - 100
@@ -109,8 +127,31 @@ export default {
       }
       this.zoom_scale = num < 25 ? 25 : num
     },
+    // originImg滚轮事件处理
+    mousewheelImgHandler(e) {
+      if (e.wheelDelta > 0) {
+        let num = this.zoom_scale
+        if (num >= 100) num = parseInt(num / 100) * 100 + 100
+        else if (num < 100) {
+          if (num >= 25 && num < 50) {
+            num = 50
+          } else num = 100
+        }
+        this.zoom_scale = num >= 400 ? 400 : num
+      } else {
+        let num = this.zoom_scale
+        if (num > 100) num = parseInt(num / 100) * 100 - 100
+        else {
+          if (num > 25 && num <= 50) {
+            num = 25
+          } else if (num > 50 && num <= 100) num = 50
+        }
+        this.zoom_scale = num < 25 ? 25 : num
+      }
+    },
   },
   watch: {
+    // 观察放大比例Val改变则修改对应DOM尺寸
     zoom_scale: {
       handler(newVal, oldVal) {
         if (newVal !== oldVal) {
@@ -133,8 +174,13 @@ export default {
   .img-wrap {
     width: 100%;
     position: relative;
+    left: 50%;
+    top: 50%;
     > img {
       width: 100%;
+    }
+    &.mid {
+      transform: translate(-50%, -50%);
     }
   }
   .zoom-info {
