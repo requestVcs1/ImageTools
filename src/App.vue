@@ -40,7 +40,7 @@ body {
 .boxx {
   position: absolute;
   left: 40px;
-  top: 30;
+  top: 30px;
   width: 100%;
   height: 100%;
   .boxxx {

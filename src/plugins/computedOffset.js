@@ -5,7 +5,6 @@
 export default (dom, cache) => {
   if (!dom) return new Error('参数不能为空')
   if (dom.nodeType !== 1) return new Error('非元素节点')
-  console.log(window.offsetObject)
   if (window.offsetObject && cache) {
     console.log('返回缓存')
     return window.offsetObject
@@ -16,7 +15,6 @@ export default (dom, cache) => {
   }
   while (dom.tagName !== 'BODY') {
     const { marginTop, marginLeft } = window.getComputedStyle(dom)
-    console.log(parseInt(marginLeft), parseInt(marginTop))
     offset.offsetLeft += dom.offsetLeft + parseInt(marginLeft) / 2
     offset.offsetTop += dom.offsetTop + parseInt(marginTop) / 2
     dom = dom.parentNode

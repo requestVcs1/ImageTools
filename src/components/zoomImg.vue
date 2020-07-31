@@ -3,6 +3,7 @@
     class="img-zoom-com"
     @mousewheel="mousewheelImgHandler"
     ref="imgZoomComRef"
+    :class="{zoom_cursor:is_zoom_tool}"
   >
     <!-- 右上角倍数窗口 -->
     <div class="zoom-info">
@@ -19,17 +20,22 @@
     <!-- 主图展示区域 -->
     <div
       @mousedown="mousedownWrapHandler"
-      @mouseup="mouseupWrapHandler"
+      @mousemove="mousemoveWrapHandler"
+      @mouseleave="mouseleaveWrapHandler"
+      @mouseenter="mouseenterWrapHandler"
       class="img-wrap mid"
       ref="ImgWrapRef"
     >
-      <img src="../assets/dongtian.jpg" alt="" />
-      <!-- 放大镜盒子 -->
-      <div
-        v-show="is_zoom_tool"
-        class="zoom-tool-box"
-        ref="zoomToolBoxRef"
-      ></div>
+      <img @load="loadImage" src="../assets/dongtian.jpg" alt="" />
+    </div>
+    <!-- 放大镜盒子 -->
+    <div
+      v-show="is_zoom_tool && !is_mouseout"
+      class="zoom-tool-box"
+      ref="zoomToolBoxRef"
+      :style="{transform: `translate(${this.mousePosInfo.offsetX},${this.mousePosInfo.offsetY})`}"
+    >
+      <img ref="zoomImgRef" src="../assets/dongtian.jpg" alt="" />
     </div>
   </div>
 </template>
@@ -39,13 +45,18 @@ import computedOffset from '../plugins/computedOffset'
 export default {
   data() {
     return {
-      zoom_scale: 100,
+      zoom_scale: 100, // 放大
+      scale_val: 1, //比例
       is_rectangular: false,
       is_zoom_tool: false,
+      is_move: false,
+      is_mouseout: true,
       mousePosInfo: {
         startX: 0,
         startY: 0,
-        isMoveFlag: true,
+        isMoveFlag: false,
+        offsetX: 0,
+        offsetY: 0
       },
     }
   },
@@ -54,6 +65,16 @@ export default {
     this.$once('hook:beforeDestroy', () => {
       window.removeEventListener('keydown', this.keydownWindowHandler)
     })
+    window.addEventListener('keyup', this.keyupWindowHandler)
+    this.$once('hook:beforeDestroy', () => {
+      window.removeEventListener('keyup', this.keyupWindowHandler)
+    })
+    const ImgWrapRef = this.getRef('ImgWrapRef')
+    this.mousePosInfo = Object.assign(
+      {},
+      this.mousePosInfo,
+      computedOffset(ImgWrapRef, false)
+    )
   },
   methods: {
     // 获取DOM
@@ -63,44 +84,58 @@ export default {
     // 外层盒子鼠标按下事件处理
     mousedownWrapHandler(e) {
       e.preventDefault()
-      const startX = e.offsetX // 鼠标按下 X 点
-      const startY = e.offsetY // 鼠标按下 Y 点
-      this.mousePosInfo.startX = startX
-      this.mousePosInfo.startY = startY
-      const Com_Wrap = this.getRef('Com_Wrap')
-      this.mousePosInfo = Object.assign(
-        {},
-        this.mousePosInfo,
-        computedOffset(Com_Wrap, true)
-      )
-      window.addEventListener('mousemove', this.mousemoveWindowHandler)
+      this.is_move = true
+      // const scale_val = ImgWrapRef.offsetWidth / (this.zoom_scale / 100 * ImgWrapRef.offsetWidth) // 计算比例
+      this.mousePosInfo.startX = e.clientX - this.mousePosInfo.offsetX
+      this.mousePosInfo.startY = e.clientY - this.mousePosInfo.offsetY
+      window.addEventListener('mouseup', this.windowWrapHandler)
     },
-    // window鼠标移动事件处理
-    mousemoveWindowHandler(e) {
-      const moveX = e.pageX
-      const moveY = e.pageY
-      const { offsetLeft, offsetTop, startX, startY } = this.mousePosInfo
+    // 外层盒子鼠标移动事件处理
+    mousemoveWrapHandler(e) {
+      const moveY = e.clientY
+      const moveX = e.clientX
+      const { startX, startY, offsetLeft,offsetTop ,offsetX, offsetY  } = this.mousePosInfo
       const ImgWrapRef = this.getRef('ImgWrapRef')
-      let strStyle = ImgWrapRef.style.cssText
-      strStyle += `
-            position:absolute;
-            left:${moveX - offsetLeft - startX + ImgWrapRef.offsetWidth / 2}px;
-            top:${moveY - offsetTop - startY + ImgWrapRef.offsetHeight / 2}px;
-            `
-      ImgWrapRef.style = strStyle
+      if(this.is_move) {
+        const x = moveX - startX
+        const y = moveY - startY
+        this.mousePosInfo.offsetX = x
+        this.mousePosInfo.offsetY = y
+        ImgWrapRef.style.transform = `translate(${x}px, ${y}px) scale(${this.zoom_scale / 100})`;
+      }
+      const zoomToolBoxRef = this.getRef('zoomToolBoxRef')
+      /* 
+       75为放大镜盒子半径 
+      */
+     console.log(offsetX,offsetY)
+      const zoomImgRef = this.getRef('zoomImgRef')
+      const scale_val = 2000 / (this.zoom_scale / 100 * ImgWrapRef.offsetWidth) // 计算比例
+      zoomToolBoxRef.style.transform = `translate(${moveX - offsetLeft - 75}px, ${moveY - offsetTop - 75}px)`
+      const x = (e.clientX - offsetX - offsetLeft) * 2 - 75
+      const y = (e.clientY - offsetY - offsetTop) * 2 - 75
+      const styleStr =  zoomImgRef.style.cssText + `left:-${x}px;top:-${y}px;`
+     zoomImgRef.style = styleStr
     },
     // 外层盒子鼠标弹起事件处理
-    mouseupWrapHandler(e) {
-      window.removeEventListener('mousemove', this.mousemoveWindowHandler)
+    windowWrapHandler(e) {
+      this.is_move = false
+      window.removeEventListener('mouseup', this.windowWrapHandler)
     },
-    // window键盘事件处理
+    // window keydown事件处理
     keydownWindowHandler(e) {
       switch (e.keyCode) {
         case 16:
-          console.log('按下shift')
+          if (!this.is_zoom_tool) {
+            this.is_zoom_tool = true
+          }
           break
-
-        default:
+      }
+    },
+    // window keyup事件处理
+    keyupWindowHandler(e) {
+      switch (e.keyCode) {
+        case 16:
+            this.is_zoom_tool = false
           break
       }
     },
@@ -149,19 +184,31 @@ export default {
         this.zoom_scale = num < 25 ? 25 : num
       }
     },
+    // 移除图片
+    mouseleaveWrapHandler() {
+      this.is_zoom_tool = false
+      this.is_mouseout = true
+    },
+    // 移入图片
+    mouseenterWrapHandler() {
+      this.is_mouseout = false
+    },
+    // 图片加载完毕
+    loadImage(e) {
+      this.$refs.zoomImgRef.style.width = e.target.offsetWidth * 2 + 'px'
+    }
   },
   watch: {
     // 观察放大比例Val改变则修改对应DOM尺寸
     zoom_scale: {
       handler(newVal, oldVal) {
         if (newVal !== oldVal) {
-          let strStyle = this.getRef('ImgWrapRef').style.cssText
-          strStyle += `width:${newVal}%`
-          this.getRef('ImgWrapRef').style = strStyle
+          const ImgWrapRef =  this.getRef('ImgWrapRef')
+          ImgWrapRef.style.transform = `translate(${this.mousePosInfo.offsetX}px, ${this.mousePosInfo.offsetY}px) scale(${this.zoom_scale / 100})`;
         }
       },
     },
-  },
+  }
 }
 </script>
 
@@ -171,16 +218,13 @@ export default {
   height: 100%;
   position: relative;
   overflow: hidden;
+  &.zoom_cursor{
+    cursor: crosshair;
+  }
   .img-wrap {
     width: 100%;
-    position: relative;
-    left: 50%;
-    top: 50%;
     > img {
       width: 100%;
-    }
-    &.mid {
-      transform: translate(-50%, -50%);
     }
   }
   .zoom-info {
@@ -225,14 +269,20 @@ export default {
     }
   }
   .zoom-tool-box {
+    overflow: hidden;
+    pointer-events:none;
     width: 150px;
     height: 150px;
-    background: steelblue;
     position: absolute;
     left: 0;
     top: 0;
     border-radius: 50%;
     box-shadow: 0px 0px 10px 2px rgba(0, 0, 0, 0.5);
+    > img{
+      position: absolute;
+      left: -100px;
+      top: -100px;
+    }
   }
 }
 </style>
